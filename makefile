@@ -1,2 +1,2 @@
 all:
-	g++ main.cpp -o main.out -lraylib && ./main.out
+	g++ main.cpp game.cpp -o main.out -lraylib && ./main.out
