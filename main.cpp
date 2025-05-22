@@ -1,8 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <raylib.h>
-//#include "raylib/build/raylib/include/raylib.h"
-#include <algorithm> //std::clamp
+#include <algorithm>
 #include <fstream>
 
 class KeyRows {
@@ -65,12 +64,18 @@ private:
     int m_score = 0;             // punkty
     std::vector<bool> m_hitFlags; // czy dana nutka została trafiona lub przegapiona
 
+    Sound hitSound;
+
 public:
     KeyRows* keyRows = nullptr;
 
     Game(int width, int height)
         : m_screenWidth(width), m_screenHeight(height)
     {
+        InitWindow(m_screenWidth, m_screenHeight, "Harmon");
+        SetTargetFPS(240);
+        InitAudioDevice();
+        hitSound = LoadSound("hit.ogg");
         approachTime = 700.0;
         std::string line;
         std::ifstream settingsFile("settings.ini");
@@ -89,6 +94,9 @@ public:
 
     ~Game() {
         delete keyRows;
+        UnloadSound(hitSound);
+        CloseAudioDevice();
+        CloseWindow();
     }
 
     int GetElapsedTime() const {
@@ -101,7 +109,7 @@ public:
 
     void Play() {
         m_playing       = true;
-        keyRows->GenerateNotes(8000, 120.0);
+        keyRows->GenerateNotes(8000, 150.0);
         StartTimer();
         m_score         = 0;
         m_nextNoteIndex = 0;
@@ -129,98 +137,94 @@ public:
     }
 
     void Loop() {
-        if (!m_playing) return;
 
-        double currentTime = GetElapsedTime();
+        while (!WindowShouldClose()) {
+            BeginDrawing();
+            ClearBackground(BG_COLOR);
+            DrawText(TextFormat("Time: %08d", GetElapsedTime()), 10, 10, 20, BLACK);
+            DrawText(TextFormat("FPS: %d", GetFPS()), 10, 70, 20, GREEN);
 
-        ClearBackground(BG_COLOR);
-        DrawRectangleRec(GetKeyRowsShape(), ROW_COLOR);
-        DrawRectangle(m_screenWidth/3, judgmentY, keyRows->GetWidth(), noteHeight, HITBAR_COLOR);
-        
-        int totalNotes = keyRows->GetNotesCount();
+            double currentTime = GetElapsedTime();
+            
+            DrawRectangleRec(GetKeyRowsShape(), ROW_COLOR);
+            DrawRectangle(m_screenWidth/3, judgmentY, keyRows->GetWidth(), noteHeight, HITBAR_COLOR);
+            
+            int totalNotes = keyRows->GetNotesCount();
 
-        // Rysuj wszystkie nutki w locie, które nie zostały trafione ani przegapione
-        for (int i = 0; i < totalNotes; i++) {
-            if (m_hitFlags[i]) continue;
+            // Rysuj wszystkie nutki w locie, które nie zostały trafione ani przegapione
+            for (int i = 0; i < totalNotes; i++) {
+                if (m_hitFlags[i]) continue;
 
-            double noteTime = keyRows->GetNoteTiming(i);
-            double timeToHit = noteTime - currentTime;
-            if (timeToHit > approachTime || timeToHit < -200.0) continue;
+                double noteTime = keyRows->GetNoteTiming(i);
+                double timeToHit = noteTime - currentTime;
+                if (timeToHit > approachTime || timeToHit < -200.0) continue;
 
-            double progress = 1.0 - (timeToHit / approachTime);
-            progress = std::clamp(progress, 0.0, 1.0);
+                double progress = 1.0 - (timeToHit / approachTime);
+                progress = std::clamp(progress, 0.0, 1.0);
 
-            int yPos = startY + (int)(progress * travelDistance);
-            int row  = keyRows->GetNoteRow(i);
-            DrawRectangleRec(GetNoteRect(row, yPos), NOTE_COLOR);
-        }
-
-        // Obsługa trafiania lub przegapienia nadchodzącej nutki
-        while (m_nextNoteIndex < totalNotes) {
-            if (m_hitFlags[m_nextNoteIndex]) {
-                m_nextNoteIndex++;
-                continue;
+                int yPos = startY + (int)(progress * travelDistance);
+                int row  = keyRows->GetNoteRow(i);
+                DrawRectangleRec(GetNoteRect(row, yPos), NOTE_COLOR);
             }
 
-            double nt   = keyRows->GetNoteTiming(m_nextNoteIndex);
-            double tt   = nt - currentTime;
-
-            //nie trafioned
-            if (tt < -200.0) {
-                m_hitFlags[m_nextNoteIndex] = true;
-                m_nextNoteIndex++;
-                continue;
-            }
-
-            double prog = 1.0 - (tt / approachTime);
-            prog = std::clamp(prog, 0.0, 1.0);
-
-            if (prog >= 0.85) {
-                int row = keyRows->GetNoteRow(m_nextNoteIndex);
-                bool hit = false;
-                if ((row == 0 && IsKeyPressed(KEY_A)) ||
-                    (row == 1 && IsKeyPressed(KEY_S)) ||
-                    (row == 2 && IsKeyPressed(KEY_K)) ||
-                    (row == 3 && IsKeyPressed(KEY_L))) {
-                    hit = true;
-                }
-                if (hit) {
-                    m_score++;
-                    m_hitFlags[m_nextNoteIndex] = true;
-                    //PlaySound(Beep);
+            // Obsługa trafiania lub przegapienia nadchodzącej nutki
+            while (m_nextNoteIndex < totalNotes) {
+                if (m_hitFlags[m_nextNoteIndex]) {
                     m_nextNoteIndex++;
+                    continue;
                 }
+
+                double nt   = keyRows->GetNoteTiming(m_nextNoteIndex);
+                double tt   = nt - currentTime;
+
+                //nie trafioned
+                if (tt < -200.0) {
+                    m_hitFlags[m_nextNoteIndex] = true;
+                    m_nextNoteIndex++;
+                    continue;
+                }
+
+                double prog = 1.0 - (tt / approachTime);
+                prog = std::clamp(prog, 0.0, 1.0);
+
+                if (prog >= 0.85) {
+                    int row = keyRows->GetNoteRow(m_nextNoteIndex);
+                    bool hit = false;
+                    if ((row == 0 && IsKeyPressed(KEY_A)) ||
+                        (row == 1 && IsKeyPressed(KEY_S)) ||
+                        (row == 2 && IsKeyPressed(KEY_K)) ||
+                        (row == 3 && IsKeyPressed(KEY_L))) {
+                        hit = true;
+                    }
+                    if (hit) {
+                        m_score++;
+                        m_hitFlags[m_nextNoteIndex] = true;
+                        PlaySound(hitSound);
+                        m_nextNoteIndex++;
+                    }
+                }
+                break;
             }
-            break;
+
+            DrawText(TextFormat("Score: %03d", m_score), 10, 40, 20, DARKBLUE);
+
+            EndDrawing();
         }
 
-        DrawText(TextFormat("Score: %03d", m_score), 10, 40, 20, DARKBLUE);
-    }
+            
+        }
+
+        //if (!m_playing) return;
+
+        
 };
 
 int main(){
     const int screenWidth  = 900;
     const int screenHeight = 600;
-
-    InitWindow(screenWidth, screenHeight, "Harmon");
-    InitAudioDevice();
-    SetTargetFPS(240);
-
     Game game(screenWidth, screenHeight);
+    
     game.Play();
-
-    while (!WindowShouldClose()) {
-        BeginDrawing();
-        
-
-        DrawText(TextFormat("Time: %08d", game.GetElapsedTime()), 10, 10, 20, BLACK);
-        DrawText(TextFormat("FPS: %d", GetFPS()), 10, 70, 20, GREEN);
-        game.Loop();
-
-        EndDrawing();
-    }
-
-    CloseAudioDevice();
-    CloseWindow();
+    game.Loop();
     return 0;
 }
