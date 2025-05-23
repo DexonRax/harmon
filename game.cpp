@@ -2,14 +2,18 @@
 #include <raylib.h>
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
 
 
 Game::Game(int width, int height){
+    m_speedMultiplier = 1.0;
+
     m_approachTime = 650; //ms
     m_missTime = 200; //ms
     m_mapPlaying = false;
     m_screenWidth = width;
     m_screenHeight = height;
+    
 
     m_noteHeight = 30;
     m_judgementY = m_screenWidth/12+m_noteHeight;
@@ -41,23 +45,52 @@ void Game::StartTimer() {
     }
 }
 
-void Game::GenerateMap(){
-    int delay = 180;
+void Game::LoadMapFile(std::string filename){
+    std::ifstream file(filename);
     m_map.clear();
-    for(int i = 0; i < 100; i++){
-        int row = rand() % 4;
-        m_map.push_back({row, 3000+i*delay, 1});
+    if (file.is_open()) {
+        int a, b;
+        while (file >> a >> b) {
+            m_map.push_back({a, b, 1});
+        }
+        file.close();
+    } else {
+        std::cerr << "Couldn't open the map file!\n";
     }
 }
 
+void Game::GenerateMap(int length){
+    int delay = 220;
+    m_map.clear();
+    for(int i = 0; i < length; i++){
+        int row = rand() % 4;
+        if(rand()%3==0){
+            m_map.push_back({(row+rand()%3)%4, 3000+i*delay, 1});
+            std::cout<<(row+rand()%3)%4<<" "<<3000+i*delay<<"\n";
+        }
+        m_map.push_back({row, 3000+i*delay, 1});
+        std::cout<<row<<" "<<3000+i*delay<<"\n";
+    }
+}
+
+void Game::PlayMap(){
+    m_mapPlaying = true;
+    //GenerateMap(200);
+    LoadMapFile("map.txt");
+    StartTimer();
+}
+
+void Game::StopMap(){
+    m_mapPlaying = false;
+}
+
+
 void Game::HandleMenu(){
     BeginDrawing();
-    ClearBackground(GRAY);
+    ClearBackground(BLACK);
 
     if(IsKeyPressed(KEY_ENTER)){
-        m_mapPlaying = true;
-        GenerateMap();
-        StartTimer();
+        PlayMap();
     }
 
     DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 20, GREEN);
@@ -79,20 +112,21 @@ void Game::HandleGameplay(){
     int colWidth = m_screenWidth/12;
 
     for(int i = 0; i < 4; i++){
-        int red = 40 + 10 * (i + 1);
-        int green = 40;
-        int blue = 40;
+        int red = 40 + 10 * (i%2);
+        int green = 40 + 10 * (i%2);
+        int blue = 40 + 10 * (i%2);
         Color color = { (unsigned char)red, (unsigned char)green, (unsigned char)blue, 255 };
         DrawRectangle(screenCenterX+(i-2)*colWidth, 0, colWidth, m_screenHeight, color);
     }
 
     DrawRectangle(screenCenterX-colWidth*2, m_screenHeight-m_judgementY, colWidth*4, m_noteHeight, GRAY);
 
+    int currentTime = GetElapsedTime()*m_speedMultiplier;
 
     for(int i = 0; i < m_map.size(); i++){
         if(m_map[i][2] == 1){
-            if(m_map[i][1] - m_approachTime < GetElapsedTime() && m_map[i][1] + m_missTime > GetElapsedTime()){
-                double tt = m_map[i][1] - GetElapsedTime();
+            if(m_map[i][1] - m_approachTime < currentTime && m_map[i][1] + m_missTime > currentTime){
+                double tt = m_map[i][1] - currentTime;
                 double prog = 1.0 - (tt / (double)m_approachTime);
 
                 if(prog > 0.85){
@@ -109,10 +143,9 @@ void Game::HandleGameplay(){
     }
 
     //end map after last note
-    if(GetElapsedTime()-2000 > m_map[m_map.size()-1][1]){
-        m_mapPlaying = false;
+    if(currentTime-2000 > m_map[m_map.size()-1][1]){
+        StopMap();
     }
-
 
     EndDrawing();
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <array>
+#include <string>
 
 class Game {
 public:
@@ -12,9 +13,12 @@ public:
 private:
     void HandleMenu();
     void HandleGameplay();
-    void GenerateMap();
+    void GenerateMap(int);
     void StartTimer();
     int GetElapsedTime() const;
+    void PlayMap();
+    void StopMap();
+    void LoadMapFile(std::string);
 
     int m_screenWidth, m_screenHeight;
     bool m_mapPlaying;
@@ -24,5 +28,6 @@ private:
     int m_judgementY;
     int m_noteHeight;
     int m_keys[4];
+    double m_speedMultiplier;
     std::vector<std::array<int, 3>> m_map;
 };
