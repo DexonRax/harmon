@@ -18,7 +18,8 @@ private:
     int GetElapsedTime() const;
     void PlayMap();
     void StopMap();
-    void LoadMapFile(std::string);
+    bool LoadMapFile(std::string);
+    void ReloadMapList();
 
     int m_screenWidth, m_screenHeight;
     bool m_mapPlaying;
@@ -30,4 +31,6 @@ private:
     int m_keys[4];
     double m_speedMultiplier;
     std::vector<std::array<int, 3>> m_map;
+    std::vector<std::string> m_mapList;
+    int m_mapListIndex;
 };
