@@ -13,11 +13,12 @@ Game::Game(int width, int height){
 
     m_exitWindowRequested = false;
 
-    m_approachTime = 650; //ms
+    m_approachTime = 750; //ms
     m_missTime = 200; //ms
     m_mapPlaying = false;
     m_screenWidth = width;
     m_screenHeight = height;
+    m_startDelay = 1500;
 
     m_mapListIndex = 0;
 
@@ -33,50 +34,84 @@ Game::Game(int width, int height){
     InitWindow(m_screenWidth, m_screenHeight, "Harmon");
     SetTargetFPS(240);
     SetExitKey(0);
+    InitAudioDevice();
 }
 
 Game::~Game(){
+    UnloadMusicStream(m_musicPlayer);
+    CloseAudioDevice();
     CloseWindow();
 }
 
-int Game::GetElapsedTime() const {
+int Game::GetElapsedTime(){
     if(m_mapPlaying){
-        return (int)((GetTime() - m_startTime) * 1000.0);
+        return (int)((GetTime()*1000 - m_startTime));
     }
     return 0;
 }
 
 void Game::StartTimer() {
     if(m_mapPlaying){
-        m_startTime = GetTime();
+        m_startTime = GetTime()*1000;
     }
 }
 
 bool Game::LoadMapFile(std::string filename){
+
+    std::string mapPath = "maps/"+filename+"/notes.txt";
+    std::string audioPath = "maps/"+filename+"/audio.mp3";
+    
+    std::cout<<mapPath<<"\n";
+
     m_map.clear();
-    std::ifstream file(filename);
+
+    std::ifstream file(mapPath);
     if (file.is_open()) {
-        int a, b;
-        while (file >> a >> b) {
-            m_map.push_back({a, b, 1});
+        int col, time;
+        while (file >> col >> time) {
+            m_map.push_back({col, time, 1});
         }
         file.close();
+        m_musicPlayer = LoadMusicStream(audioPath.c_str());
     } else {
         std::cerr << "Couldn't open the map file!\n";
         return false;
     }
     return true;
+
 }
 
-void Game::GenerateMap(int startDelay, int notesNum, int delay){
-    std::ofstream map("maps/lol.txt");
-    for(int i = 0; i < notesNum; i++){
-        int row = rand() % 4;
-        if(rand()%3==0){
-            map<<(row+rand()%3)%4<<" "<<startDelay+i*delay<<"\n";
+void Game::ReloadMapList(){
+
+    m_mapList.clear();
+
+    std::string path = "maps";
+
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(path)) {
+            if (entry.is_directory()) {
+                //std::cout << entry.path().filename() << '\n';
+                m_mapList.push_back(entry.path().filename());
+            }
         }
-        map<<row<<" "<<startDelay+i*delay<<"\n";
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Couldn't load maps!\n";
     }
+    
+}
+
+void Game::GenerateMap(double startDelay, double endTime, double delay, std::string path){
+    std::ofstream map(path);
+
+    int i = 0;
+    while(startDelay + i*delay < endTime){
+        int col = rand() % 4;
+        double timing = startDelay+(double)i*delay;
+        map<<col<<" "<<(int)timing<<"\n";
+        i++;
+    }
+
+    std::cout<<"Map generated!\n";
     ReloadMapList();
 }
 
@@ -87,27 +122,14 @@ void Game::PlayMap(){
     }else{
         m_mapPlaying = true;
         StartTimer();
+        PlayMusicStream(m_musicPlayer);
     }
     
 }
 
 void Game::StopMap(){
+    StopMusicStream(m_musicPlayer);
     m_mapPlaying = false;
-}
-
-void Game::ReloadMapList(){
-    m_mapList.clear();
-    try {
-        for (const auto& entry : std::filesystem::directory_iterator("maps")) {
-            if (std::filesystem::is_regular_file(entry.status())) {
-                std::cout << entry.path() << '\n';
-                m_mapList.push_back(entry.path());
-            } 
-        }
-        std::sort(m_mapList.begin(), m_mapList.end());
-    } catch (const std::filesystem::filesystem_error& e) {
-        std::cerr << "Error: " << e.what() << '\n';
-    }
 }
 
 void Game::HandleMenu(){
@@ -117,7 +139,7 @@ void Game::HandleMenu(){
     }
 
     if(IsKeyPressed(KEY_G)){
-        GenerateMap(3000, 200, 180);
+        GenerateMap(0.0, 120000.0, 250.0, "maps/240bpm/notes.txt");
     }
 
     if(IsKeyPressed(KEY_ENTER)){
@@ -170,7 +192,7 @@ void Game::HandleGameplay(){
     ClearBackground(BLACK);
 
     DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 20, GREEN);
-    DrawText(TextFormat("Timer: %i", GetElapsedTime()), 10, m_screenHeight-20, 20, GREEN);
+    
 
     int notesHit = 0;
     int notesMissed = 0;
@@ -207,7 +229,21 @@ void Game::HandleGameplay(){
 
     DrawRectangle(screenCenterX-colWidth*2, m_screenHeight-m_judgementY, colWidth*4, m_noteHeight, GRAY);
 
-    int currentTime = GetElapsedTime()*m_speedMultiplier;
+
+    int currentTime = GetElapsedTime()*m_speedMultiplier-m_startDelay;
+
+    DrawText(TextFormat("Timer: %i", currentTime), 10, m_screenHeight-20, 20, GREEN);
+
+    if(0 > currentTime){
+        //std::cout<<0<<" "<<currentTime<<"\n";
+        PauseMusicStream(m_musicPlayer);
+    }else{
+        if(!IsMusicStreamPlaying(m_musicPlayer)){
+            ResumeMusicStream(m_musicPlayer);
+        }
+    }
+
+    UpdateMusicStream(m_musicPlayer);
 
     for(int i = 0; i < m_map.size(); i++){
         if(m_map[i][2] == 1){

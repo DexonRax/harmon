@@ -2,6 +2,7 @@
 #include <vector>
 #include <array>
 #include <string>
+#include <raylib.h>
 
 class Game {
 public:
@@ -13,9 +14,9 @@ public:
 private:
     void HandleMenu();
     void HandleGameplay();
-    void GenerateMap(int, int, int);
+    void GenerateMap(double, double, double, std::string);
     void StartTimer();
-    int GetElapsedTime() const;
+    int GetElapsedTime();
     void PlayMap();
     void StopMap();
     bool LoadMapFile(std::string);
@@ -28,6 +29,7 @@ private:
     int m_missTime;
     int m_judgementY;
     int m_noteHeight;
+    int m_startDelay;
     int m_keys[4];
     double m_speedMultiplier;
     std::vector<int> m_noteJudgements;
@@ -35,4 +37,5 @@ private:
     std::vector<std::string> m_mapList;
     int m_mapListIndex;
     bool m_exitWindowRequested;
+    Music m_musicPlayer;
 };
