@@ -13,7 +13,7 @@ public:
 private:
     void HandleMenu();
     void HandleGameplay();
-    void GenerateMap(int);
+    void GenerateMap(int, int, int);
     void StartTimer();
     int GetElapsedTime() const;
     void PlayMap();
@@ -30,7 +30,9 @@ private:
     int m_noteHeight;
     int m_keys[4];
     double m_speedMultiplier;
+    std::vector<int> m_noteJudgements;
     std::vector<std::array<int, 3>> m_map;
     std::vector<std::string> m_mapList;
     int m_mapListIndex;
+    bool m_exitWindowRequested;
 };

@@ -5,9 +5,13 @@
 #include <fstream>
 #include <filesystem>
 #include <algorithm>
+#include <fstream>
 
 Game::Game(int width, int height){
+    srand(time(NULL));
     m_speedMultiplier = 1.0;
+
+    m_exitWindowRequested = false;
 
     m_approachTime = 650; //ms
     m_missTime = 200; //ms
@@ -49,8 +53,8 @@ void Game::StartTimer() {
 }
 
 bool Game::LoadMapFile(std::string filename){
-    std::ifstream file(filename);
     m_map.clear();
+    std::ifstream file(filename);
     if (file.is_open()) {
         int a, b;
         while (file >> a >> b) {
@@ -64,21 +68,20 @@ bool Game::LoadMapFile(std::string filename){
     return true;
 }
 
-void Game::GenerateMap(int length){
-    int delay = 220;
-    m_map.clear();
-    for(int i = 0; i < length; i++){
+void Game::GenerateMap(int startDelay, int notesNum, int delay){
+    std::ofstream map("maps/lol.txt");
+    for(int i = 0; i < notesNum; i++){
         int row = rand() % 4;
         if(rand()%3==0){
-            m_map.push_back({(row+rand()%3)%4, 3000+i*delay, 1});
-            std::cout<<(row+rand()%3)%4<<" "<<3000+i*delay<<"\n";
+            map<<(row+rand()%3)%4<<" "<<startDelay+i*delay<<"\n";
         }
-        m_map.push_back({row, 3000+i*delay, 1});
-        std::cout<<row<<" "<<3000+i*delay<<"\n";
+        map<<row<<" "<<startDelay+i*delay<<"\n";
     }
+    ReloadMapList();
 }
 
 void Game::PlayMap(){
+    m_noteJudgements.clear();
     if(!LoadMapFile(m_mapList[m_mapListIndex])){
         StopMap();
     }else{
@@ -92,11 +95,39 @@ void Game::StopMap(){
     m_mapPlaying = false;
 }
 
+void Game::ReloadMapList(){
+    m_mapList.clear();
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator("maps")) {
+            if (std::filesystem::is_regular_file(entry.status())) {
+                std::cout << entry.path() << '\n';
+                m_mapList.push_back(entry.path());
+            } 
+        }
+        std::sort(m_mapList.begin(), m_mapList.end());
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Error: " << e.what() << '\n';
+    }
+}
 
 void Game::HandleMenu(){
+
+    if(IsKeyPressed(KEY_ESCAPE)){
+        m_exitWindowRequested = true;
+    }
+
+    if(IsKeyPressed(KEY_G)){
+        GenerateMap(3000, 200, 180);
+    }
+
     if(IsKeyPressed(KEY_ENTER)){
         PlayMap();
     }
+
+    if(IsKeyPressed(KEY_F5)){
+        ReloadMapList();
+    }
+
 
     if(IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_DOWN)){
         if(m_mapListIndex != m_mapList.size()-1)
@@ -110,17 +141,7 @@ void Game::HandleMenu(){
     ClearBackground(BLACK);
 
     if(m_mapList.empty()){
-        try {
-            for (const auto& entry : std::filesystem::directory_iterator("maps")) {
-                if (std::filesystem::is_regular_file(entry.status())) {
-                    std::cout << entry.path() << '\n';
-                    m_mapList.push_back(entry.path());
-                } 
-            }
-            std::sort(m_mapList.begin(), m_mapList.end());
-        } catch (const std::filesystem::filesystem_error& e) {
-            std::cerr << "Error: " << e.what() << '\n';
-        }
+        ReloadMapList();
     }else{
         for(int i = 0; i < m_mapList.size(); i++){
             if(i == m_mapListIndex){
@@ -150,6 +171,27 @@ void Game::HandleGameplay(){
 
     DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 20, GREEN);
     DrawText(TextFormat("Timer: %i", GetElapsedTime()), 10, m_screenHeight-20, 20, GREEN);
+
+    int notesHit = 0;
+    int notesMissed = 0;
+    for(int i = 0; i < m_noteJudgements.size(); i++){
+        if(m_noteJudgements[i] == 1){
+            notesHit++;
+        }else{
+            notesMissed++;
+        }
+    }
+
+    double accuracy = 100.0;
+    if(m_noteJudgements.size()>0){
+        accuracy = ((double)m_noteJudgements.size()-(double)notesMissed)/(double)m_noteJudgements.size();
+        accuracy = std::clamp(accuracy, 0.0, 1.0);
+        accuracy *= 100;
+    }
+
+    DrawText(TextFormat("Hits: %i/%i", notesHit, m_noteJudgements.size()), 10, 40, 20, GREEN);
+    DrawText(TextFormat("Acc: %.2f", accuracy), 10, 70, 20, GREEN);
+
     DrawText(TextFormat("%s", m_mapList[m_mapListIndex].c_str()), m_screenWidth-200, m_screenHeight-20, 20, GREEN);
 
     int screenCenterX = m_screenWidth/2;
@@ -169,14 +211,20 @@ void Game::HandleGameplay(){
 
     for(int i = 0; i < m_map.size(); i++){
         if(m_map[i][2] == 1){
-            if(m_map[i][1] - m_approachTime < currentTime && m_map[i][1] + m_missTime > currentTime){
+            if(m_map[i][1] - m_approachTime - 100.0 < currentTime && m_map[i][1] + m_missTime + 100.0 > currentTime){
                 double tt = m_map[i][1] - currentTime;
                 double prog = 1.0 - (tt / (double)m_approachTime);
 
                 if(prog > 0.85){
                     if(IsKeyPressed(m_keys[m_map[i][0]])){
                         m_map[i][2] = 0;
+                        m_noteJudgements.push_back(1);
                     }
+                }
+
+                if(m_map[i][1] + m_missTime < currentTime){
+                    m_map[i][2] = 0;
+                    m_noteJudgements.push_back(0);
                 }
 
                 int yPos = (m_screenHeight - m_judgementY) * prog;
@@ -195,7 +243,7 @@ void Game::HandleGameplay(){
 }
 
 void Game::Run(){
-    while (!WindowShouldClose()) {
+    while (!WindowShouldClose() && !m_exitWindowRequested) {
         if(!m_mapPlaying){
             HandleMenu();
         }else{
