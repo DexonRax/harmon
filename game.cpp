@@ -32,7 +32,7 @@ Game::Game(int width, int height){
 
     m_startTime = 0;
     InitWindow(m_screenWidth, m_screenHeight, "Harmon");
-    SetTargetFPS(240);
+    SetTargetFPS(1000);
     SetExitKey(0);
     InitAudioDevice();
 }
@@ -123,6 +123,7 @@ void Game::PlayMap(){
         m_mapPlaying = true;
         StartTimer();
         PlayMusicStream(m_musicPlayer);
+        SetMusicPitch(m_musicPlayer, m_speedMultiplier);
     }
     
 }
@@ -235,8 +236,9 @@ void Game::HandleGameplay(){
     DrawText(TextFormat("Timer: %i", currentTime), 10, m_screenHeight-20, 20, GREEN);
 
     if(0 > currentTime){
-        //std::cout<<0<<" "<<currentTime<<"\n";
-        PauseMusicStream(m_musicPlayer);
+        if(IsMusicStreamPlaying(m_musicPlayer)){
+            PauseMusicStream(m_musicPlayer);
+        }
     }else{
         if(!IsMusicStreamPlaying(m_musicPlayer)){
             ResumeMusicStream(m_musicPlayer);
