@@ -13,6 +13,8 @@ Game::Game(int width, int height){
 
     m_exitWindowRequested = false;
 
+
+    m_musicOffset = -20;
     m_approachTime = 750; //ms
     m_missTime = 200; //ms
     m_mapPlaying = false;
@@ -45,7 +47,7 @@ Game::~Game(){
 
 int Game::GetElapsedTime(){
     if(m_mapPlaying){
-        return (int)((GetTime()*1000 - m_startTime));
+        return (int)((GetTime()*1000 - m_startTime) + m_musicOffset);
     }
     return 0;
 }
@@ -116,12 +118,14 @@ void Game::GenerateMap(double startDelay, double endTime, double delay, std::str
 }
 
 void Game::PlayMap(){
+    
     m_noteJudgements.clear();
     if(!LoadMapFile(m_mapList[m_mapListIndex])){
         StopMap();
     }else{
         m_mapPlaying = true;
         StartTimer();
+        m_hitSfx = LoadSound("sfx/hit.mp3");
         PlayMusicStream(m_musicPlayer);
         SetMusicPitch(m_musicPlayer, m_speedMultiplier);
     }
@@ -129,6 +133,7 @@ void Game::PlayMap(){
 }
 
 void Game::StopMap(){
+    UnloadSound(m_hitSfx); 
     StopMusicStream(m_musicPlayer);
     m_mapPlaying = false;
 }
@@ -255,6 +260,7 @@ void Game::HandleGameplay(){
 
                 if(prog > 0.85){
                     if(IsKeyPressed(m_keys[m_map[i][0]])){
+                        PlaySound(m_hitSfx);
                         m_map[i][2] = 0;
                         m_noteJudgements.push_back(1);
                     }

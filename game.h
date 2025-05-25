@@ -30,6 +30,7 @@ private:
     int m_judgementY;
     int m_noteHeight;
     int m_startDelay;
+    int m_musicOffset;
     int m_keys[4];
     double m_speedMultiplier;
     std::vector<int> m_noteJudgements;
@@ -38,4 +39,5 @@ private:
     int m_mapListIndex;
     bool m_exitWindowRequested;
     Music m_musicPlayer;
+    Sound m_hitSfx;  
 };
